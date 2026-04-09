@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Tp Cryptographie</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: monospace;
+    background: black;
+    color: #00ff00;
+    overflow: hidden;
+}
+
+/* Canvas Matrix */
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+
+/* Interface */
+.container {
+    position: relative;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid #00ff00;
+    padding: 20px;
+    width: 350px;
+    margin: 100px auto;
+    border-radius: 10px;
+    box-shadow: 0 0 20px #00ff00;
+}
+
+h1 {
+    text-align: center;
+    text-shadow: 0 0 10px #00ff00;
+}
+
+input, select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    background: black;
+    border: 1px solid #00ff00;
+    color: #00ff00;
+}
+
+button:hover {
+    background: #00ff00;
+    color: black;
+    cursor: pointer;
+}
+
+.result {
+    margin-top: 15px;
+    font-size: 20px;
+    text-shadow: 0 0 10px #00ff00;
+}
+
+/* Curseur clignotant */
+.blink {
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50%, 100% { opacity: 1; }
+    25%, 75% { opacity: 0; }
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div class="container">
+    <h1>CRYPTO Massamba</h1>
+
+    <input type="text" id="text" placeholder="Entrer texte">
+
+    <select id="algo">
+        <option value="cesar">César</option>
+        <option value="vigenere">Vigenère</option>
+        <option value="autokey">Autokey</option>
+    </select>
+
+    <input type="text" id="key" placeholder="Clé">
+
+    <select id="mode">
+        <option value="encrypt">Chiffrer</option>
+        <option value="decrypt">Déchiffrer</option>
+    </select>
+
+    <button onclick="process()">EXECUTE</button>
+
+    <div class="result" id="result">_</div>
+</div>
+
+<script>
+
+// MATRIX EFFECT
+let canvas = document.getElementById("matrix");
+let ctx = canvas.getContext("2d");
+
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+letters = letters.split("");
+
+let fontSize = 14;
+let columns = canvas.width / fontSize;
+
+let drops = [];
+for (let x = 0; x < columns; x++)
+    drops[x] = 1;
+
+function draw() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#0F0";
+    ctx.font = fontSize + "px monospace";
+
+    for (let i = 0; i < drops.length; i++) {
+        let text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+            drops[i] = 0;
+
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 33);
+
+//  Conversion
+function charToNum(c) {
+    return c.charCodeAt(0) - 65;
+}
+
+function numToChar(n) {
+    return String.fromCharCode((n % 26 + 26) % 26 + 65);
+}
+
+//  César
+function cesar(text, k) {
+    return text.split('').map(c => numToChar(charToNum(c) + k)).join('');
+}
+
+function decryptCesar(text, k) {
+    return text.split('').map(c => numToChar(charToNum(c) - k)).join('');
+}
+
+//  Vigenère
+function vigenere(text, key) {
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        let t = charToNum(text[i]);
+        let k = charToNum(key[i % key.length]);
+        result += numToChar(t + k);
+    }
+    return result;
+}
+
+function decryptVigenere(text, key) {
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        let c = charToNum(text[i]);
+        let k = charToNum(key[i % key.length]);
+        result += numToChar(c - k);
+    }
+    return result;
+}
+
+//  Autokey
+function autokey(text, key) {
+    let result = '';
+    let fullKey = key + text;
+
+    for (let i = 0; i < text.length; i++) {
+        result += numToChar(charToNum(text[i]) + charToNum(fullKey[i]));
+    }
+    return result;
+}
+
+function decryptAutokey(text, key) {
+    let result = '';
+    let currentKey = key;
+
+    for (let i = 0; i < text.length; i++) {
+        let p = (charToNum(text[i]) - charToNum(currentKey[i]) + 26) % 26;
+        let letter = numToChar(p);
+        result += letter;
+        currentKey += letter;
+    }
+    return result;
+}
+
+// Animation texte
+function typeEffect(text) {
+    let i = 0;
+    let output = "";
+    let el = document.getElementById("result");
+
+    let interval = setInterval(() => {
+        output += text[i];
+        el.innerHTML = output + '<span class="blink">|</span>';
+        i++;
+
+        if (i >= text.length) {
+            clearInterval(interval);
+            el.innerHTML = output;
+        }
+    }, 50);
+}
+
+// Fonction principale
+function process() {
+    let text = document.getElementById("text").value.toUpperCase().replace(/[^A-Z]/g, '');
+    let algo = document.getElementById("algo").value;
+    let key = document.getElementById("key").value.toUpperCase();
+    let mode = document.getElementById("mode").value;
+
+    let result = "";
+
+    if (mode === "encrypt") {
+        if (algo === "cesar") result = cesar(text, parseInt(key));
+        if (algo === "vigenere") result = vigenere(text, key);
+        if (algo === "autokey") result = autokey(text, key);
+    } else {
+        if (algo === "cesar") result = decryptCesar(text, parseInt(key));
+        if (algo === "vigenere") result = decryptVigenere(text, key);
+        if (algo === "autokey") result = decryptAutokey(text, key);
+    }
+
+    typeEffect(result);
+}
+
+</script>
+
+</body>
+</html>
