@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>TP Cryptographie - Massamba</title>
+
+<style>
+body {
+    margin: 0;
+    font-family: monospace;
+    background: black;
+    color: #00ff00;
+    overflow: hidden;
+}
+
+/* MATRIX CANVAS */
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+
+/* INTERFACE */
+.container {
+    position: relative;
+    z-index: 2;
+    background: rgba(0,0,0,0.9);
+    border: 1px solid #00ff00;
+    padding: 20px;
+    width: 400px;
+    margin: 80px auto;
+    border-radius: 10px;
+    box-shadow: 0 0 20px #00ff00;
+}
+
+h1 {
+    text-align: center;
+}
+
+.owner {
+    text-align: center;
+    margin-bottom: 10px;
+    color: #00ffaa;
+}
+
+input, select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    background: black;
+    border: 1px solid #00ff00;
+    color: #00ff00;
+}
+
+button:hover {
+    background: #00ff00;
+    color: black;
+    cursor: pointer;
+}
+
+.result {
+    margin-top: 15px;
+    font-size: 18px;
+}
+</style>
+
+</head>
+
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div class="container">
+    <h1>CRYPTO APP</h1>
+   
+<input type="text" id="text" placeholder="Entrer texte">
+
+<select id="algo">
+    <option value="cesar">César</option>
+    <option value="affine">Affine</option>
+    <option value="vigenere">Vigenère</option>
+    <option value="autokey">Autokey</option>
+    <option value="playfair">Playfair</option>
+</select>
+
+<input type="text" id="key" placeholder="Clé">
+
+<select id="mode">
+    <option value="encrypt">Chiffrer</option>
+    <option value="decrypt">Déchiffrer</option>
+</select>
+
+<button onclick="process()">EXECUTER</button>
+
+<div class="result" id="result"></div>
+
+
+</div>
+
+<script>
+
+// ===== MATRIX EFFECT =====
+let canvas = document.getElementById("matrix");
+let ctx = canvas.getContext("2d");
+
+canvas.height = window.innerHeight;
+canvas.width = window.innerWidth;
+
+let letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+letters = letters.split("");
+
+let fontSize = 14;
+let columns = canvas.width / fontSize;
+
+let drops = [];
+for (let i = 0; i < columns; i++) {
+    drops[i] = 1;
+}
+
+function draw() {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#0F0";
+    ctx.font = fontSize + "px monospace";
+
+    for (let i = 0; i < drops.length; i++) {
+        let text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+            drops[i] = 0;
+
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 33);
+
+// ===== CRYPTO FUNCTIONS =====
+function charToNum(c){ return c.charCodeAt(0)-65; }
+function numToChar(n){ return String.fromCharCode((n%26+26)%26+65); }
+
+function isEmpty(val){ return !val || val.length===0; }
+
+// CESAR
+function cesar(t,k){ return t.split('').map(c=>numToChar(charToNum(c)+k)).join(''); }
+function decryptCesar(t,k){ return t.split('').map(c=>numToChar(charToNum(c)-k)).join(''); }
+
+// AFFINE
+function modInverse(a){
+    for(let i=1;i<26;i++) if((a*i)%26===1) return i;
+    return null;
+}
+function affine(t,a,b){ return t.split('').map(c=>numToChar(a*charToNum(c)+b)).join(''); }
+function decryptAffine(t,a,b){
+    let inv=modInverse(a);
+    if(inv===null) return "Erreur clé";
+    return t.split('').map(c=>numToChar(inv*(charToNum(c)-b))).join('');
+}
+
+// VIGENERE
+function vigenere(t,k){
+    let r="";
+    for(let i=0;i<t.length;i++)
+        r+=numToChar(charToNum(t[i])+charToNum(k[i%k.length]));
+    return r;
+}
+function decryptVigenere(t,k){
+    let r="";
+    for(let i=0;i<t.length;i++)
+        r+=numToChar(charToNum(t[i])-charToNum(k[i%k.length]));
+    return r;
+}
+
+// AUTOKEY
+function autokey(t,k){
+    let full=k+t;
+    return t.split('').map((c,i)=>numToChar(charToNum(c)+charToNum(full[i]))).join('');
+}
+function decryptAutokey(t,k){
+    let r="";
+    let current=k;
+    for(let i=0;i<t.length;i++){
+        let p=(charToNum(t[i])-charToNum(current[i])+26)%26;
+        let l=numToChar(p);
+        r+=l;
+        current+=l;
+    }
+    return r;
+}
+
+// PLAYFAIR (simplifié)
+function createMatrix(key){
+    key=key.replace(/J/g,'I');
+    let used={}, matrix=[];
+    key+="ABCDEFGHIKLMNOPQRSTUVWXYZ";
+
+    for(let c of key){
+        if(!used[c]){
+            matrix.push(c);
+            used[c]=true;
+        }
+    }
+
+    let grid=[];
+    for(let i=0;i<5;i++)
+        grid.push(matrix.slice(i*5,(i+1)*5));
+
+    return grid;
+}
+
+function findPos(grid,c){
+    for(let i=0;i<5;i++)
+        for(let j=0;j<5;j++)
+            if(grid[i][j]===c) return [i,j];
+}
+
+function playfairEncrypt(text,key){
+    let grid=createMatrix(key);
+    let res="";
+
+    for(let i=0;i<text.length;i+=2){
+        let a=text[i];
+        let b=text[i+1] || 'X';
+
+        let [r1,c1]=findPos(grid,a);
+        let [r2,c2]=findPos(grid,b);
+
+        if(r1===r2){
+            res+=grid[r1][(c1+1)%5];
+            res+=grid[r2][(c2+1)%5];
+        }
+        else if(c1===c2){
+            res+=grid[(r1+1)%5][c1];
+            res+=grid[(r2+1)%5][c2];
+        }
+        else{
+            res+=grid[r1][c2];
+            res+=grid[r2][c1];
+        }
+    }
+    return res;
+}
+
+// PROCESS
+function process(){
+    let text=document.getElementById("text").value.toUpperCase().replace(/[^A-Z]/g,'');
+    let algo=document.getElementById("algo").value;
+    let key=document.getElementById("key").value.toUpperCase();
+    let mode=document.getElementById("mode").value;
+
+    let result="";
+
+    try{
+        if(algo==="cesar"){
+            let k=parseInt(key);
+            result=mode==="encrypt"?cesar(text,k):decryptCesar(text,k);
+        }
+        if(algo==="affine"){
+            let [a,b]=key.split(',').map(Number);
+            result=mode==="encrypt"?affine(text,a,b):decryptAffine(text,a,b);
+        }
+        if(algo==="vigenere"){
+            result=mode==="encrypt"?vigenere(text,key):decryptVigenere(text,key);
+        }
+        if(algo==="autokey"){
+            result=mode==="encrypt"?autokey(text,key):decryptAutokey(text,key);
+        }
+        if(algo==="playfair"){
+            result=playfairEncrypt(text,key);
+        }
+    }catch(e){
+        result="Erreur";
+    }
+
+    document.getElementById("result").innerText=result;
+}
+
+</script>
+
+</body>
+</html>
